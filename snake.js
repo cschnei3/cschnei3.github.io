@@ -123,9 +123,9 @@ $(document).ready(function(){
 	//Lets first create a generic function to paint cells
 	function paint_cell(x, y)
 	{
-		ctx.fillStyle = "blue";
+		ctx.fillStyle = "black";
 		ctx.fillRect(x*cw, y*cw, cw, cw);
-		ctx.strokeStyle = "white";
+		ctx.strokeStyle = "transparent";
 		ctx.strokeRect(x*cw, y*cw, cw, cw);
 	}
 	
