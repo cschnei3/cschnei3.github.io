@@ -2,8 +2,8 @@ $(document).ready(function(){
 	//Canvas stuff
 	var canvas = $("#canvas")[0];
 	var ctx = canvas.getContext("2d");
-	var w = $(window).width();
-	var h = $(window).height();
+	var w = ("#canvas").width();
+	var h = ("#canvas").height();
 	
 	//Lets save the cell width in a variable for easy control
 	var cw = 10;
@@ -20,7 +20,6 @@ $(document).ready(function(){
 		create_snake();
 		create_food(); //Now we can see the food particle
 		//finally lets display the score
-		score = 0;
 		
 		//Lets move the snake now using a timer which will trigger the paint function
 		//every 60ms
@@ -56,8 +55,8 @@ $(document).ready(function(){
 	{
 		//To avoid the snake trail we need to paint the BG on every frame
 		//Lets paint the canvas now
-		ctx.fillStyle = a0000;
-		ctx.Rect(0, 0, w, h);
+		//ctx.fillStyle = a0000;
+		//ctx.rect(0, 0, w, h);
 		ctx.strokeStyle = "black";
 		ctx.strokeRect(0, 0, w, h);
 		
