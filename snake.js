@@ -56,7 +56,7 @@ $(document).ready(function(){
 	{
 		//To avoid the snake trail we need to paint the BG on every frame
 		//Lets paint the canvas now
-		ctx.fillStyle = "white";
+		ctx.fillStyle = "transparent";
 		ctx.fillRect(0, 0, w, h);
 		ctx.strokeStyle = "black";
 		ctx.strokeRect(0, 0, w, h);
@@ -110,21 +110,25 @@ $(document).ready(function(){
 		{
 			var c = snake_array[i];
 			//Lets paint 10px wide cells
-			paint_cell(c.x, c.y);
+			paint_cell(c.x, c.y, " ");
 		}
 		
 		//Lets paint the food
-		paint_cell(food.x, food.y);
+		paint_cell(food.x, food.y, "food");
 		//Lets paint the score
 		var score_text = "Score: " + score;
 		ctx.fillText(score_text, 5, h-5);
 	}
 	
 	//Lets first create a generic function to paint cells
-	function paint_cell(x, y)
+	function paint_cell(x, y, z)
 	{
-		ctx.fillStyle = "black";
-		ctx.fillRect(x*cw, y*cw, cw, cw);
+        if(z === "food")
+            ctx.fillStyle = "red";
+        else
+		    ctx.fillStyle = "black";
+		
+        ctx.fillRect(x*cw, y*cw, cw, cw);
 		ctx.strokeStyle = "transparent";
 		ctx.strokeRect(x*cw, y*cw, cw, cw);
 	}
