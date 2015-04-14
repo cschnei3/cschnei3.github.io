@@ -2,8 +2,8 @@ $(document).ready(function(){
 	//Canvas stuff
 	var canvas = $("#canvas")[0];
 	var ctx = canvas.getContext("2d");
-	var w = $("#canvas").width();
-	var h = $("#canvas").height();
+	var w = $(window).width();
+	var h = $(window).height();
 	
 	//Lets save the cell width in a variable for easy control
 	var cw = 10;
@@ -56,8 +56,8 @@ $(document).ready(function(){
 	{
 		//To avoid the snake trail we need to paint the BG on every frame
 		//Lets paint the canvas now
-		ctx.fillStyle = "transparent";
-		ctx.fillRect(0, 0, w, h);
+		ctx.fillStyle = a0000;
+		ctx.Rect(0, 0, w, h);
 		ctx.strokeStyle = "black";
 		ctx.strokeRect(0, 0, w, h);
 		
