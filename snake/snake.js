@@ -2,8 +2,8 @@ $(document).ready(function(){
 	//Canvas stuff
 	var canvas = $("#canvas")[0];
 	var ctx = canvas.getContext("2d");
-	var w = ("#canvas").width();
-	var h = ("#canvas").height();
+	var w = $("#canvas").width();
+	var h = $("#canvas").height();
 	
 	//Lets save the cell width in a variable for easy control
 	var cw = 10;
@@ -20,6 +20,7 @@ $(document).ready(function(){
 		create_snake();
 		create_food(); //Now we can see the food particle
 		//finally lets display the score
+		score = 0;
 		
 		//Lets move the snake now using a timer which will trigger the paint function
 		//every 60ms
@@ -55,8 +56,8 @@ $(document).ready(function(){
 	{
 		//To avoid the snake trail we need to paint the BG on every frame
 		//Lets paint the canvas now
-		//ctx.fillStyle = a0000;
-		//ctx.rect(0, 0, w, h);
+		ctx.fillStyle = "white";
+		ctx.fillRect(0, 0, w, h);
 		ctx.strokeStyle = "black";
 		ctx.strokeRect(0, 0, w, h);
 		
@@ -109,26 +110,22 @@ $(document).ready(function(){
 		{
 			var c = snake_array[i];
 			//Lets paint 10px wide cells
-			paint_cell(c.x, c.y, " ");
+			paint_cell(c.x, c.y);
 		}
 		
 		//Lets paint the food
-		paint_cell(food.x, food.y, "food");
+		paint_cell(food.x, food.y);
 		//Lets paint the score
 		var score_text = "Score: " + score;
 		ctx.fillText(score_text, 5, h-5);
 	}
 	
 	//Lets first create a generic function to paint cells
-	function paint_cell(x, y, z)
+	function paint_cell(x, y)
 	{
-        if(z === "food")
-            ctx.fillStyle = "red";
-        else
-		    ctx.fillStyle = "black";
-		
-        ctx.fillRect(x*cw, y*cw, cw, cw);
-		ctx.strokeStyle = "transparent";
+		ctx.fillStyle = "blue";
+		ctx.fillRect(x*cw, y*cw, cw, cw);
+		ctx.strokeStyle = "white";
 		ctx.strokeRect(x*cw, y*cw, cw, cw);
 	}
 	
