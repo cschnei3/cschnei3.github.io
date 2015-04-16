@@ -84,7 +84,7 @@ body {
           }
           .masthead-nav > li > a:hover,
           .masthead-nav > li > a:focus {
-              background-color: white;
+              background-color: black;
               border-bottom-color: #000;
               border-bottom-color: rgba(255,255,255,.5);
                 }
