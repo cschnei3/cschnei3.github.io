@@ -78,8 +78,9 @@ body {
     padding-right: 0;
     padding-left: 0;
     font-size: 16px;
+    /*
     color: #fff; /* IE8 proofing */
-    color: rgba(255,255,255,.5);
+    /*color: rgba(255,255,255,.5);
     border-bottom: 2px solid #fff;
           }
           .masthead-nav > li > a:hover,
@@ -103,7 +104,7 @@ body {
                                         float: right;
                                                 }
                                             }
-
+        */
 
                                             /*
                                              *  * Cover
