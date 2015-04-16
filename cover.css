@@ -41,9 +41,10 @@ body {
       width: 100%;
       height: 100%; /* For at least Firefox */
       min-height: 100%;
-      -webkit-box-shadow: inset 0 0 100px rgba(0,0,0,.5);
+      /*-webkit-box-shadow: inset 0 0 100px rgba(0,0,0,.5);
       box-shadow: inset 0 0 100px rgba(0,0,0,.5);
-                      }
+       */
+           }
                       .site-wrapper-inner {
                           display: table-cell;
                           vertical-align: top;
@@ -91,8 +92,8 @@ body {
                     .masthead-nav > .active > a,
                     .masthead-nav > .active > a:hover,
                     .masthead-nav > .active > a:focus {
-                        color: #000;
-                        border-bottom-color: #000;
+                        color: #fff;
+                        border-bottom-color: #fff;
                         }
 
                         @media (min-width: 768px) {
