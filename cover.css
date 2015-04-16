@@ -78,14 +78,14 @@ body {
     padding-right: 0;
     padding-left: 0;
     font-size: 16px;
-    color: black; /* IE8 proofing */
+    color: #fff; /* IE8 proofing */
     color: rgba(255,255,255,.5);
-    border-bottom: 2px solid transparent;
+    border-bottom: 2px solid #fff;
           }
           .masthead-nav > li > a:hover,
           .masthead-nav > li > a:focus {
               background-color: black;
-              border-bottom-color: #000;
+              border-bottom-color: #fff;
               border-bottom-color: rgba(255,255,255,.5);
                 }
                 .masthead-nav > .active > a,
