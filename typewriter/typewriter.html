@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"> 
+		<style type="text/css" media="all">
+			.output {
+				font-family: "Special Elite", monospace;
+				font-size: 20px;
+				line-height: 30px;
+				position: absolute;
+				left: 5em;
+				top: 3em;
+				margin-bottom: 2em;
+				width: 52em;
+				height: 160ex;
+				background-color: white;
+				border: 1px solid black;
+				box-shadow: 8px 8px 4px #888;
+				white-space: nowrap;
+				z-index: 2;
+				display: none;
+			}
+			.cursor {
+				position: absolute;
+				z-index: 3;
+				width: 12px;
+				height: 20px;
+				border-bottom: 2px solid red;
+				display: none;
+			}
+			.title {
+				float: left;
+			}
+			.controls {
+				margin: 0 1em;
+				float: right;
+			}
+			.control {
+				float: left;
+				width: 140px;
+				margin: 0 1ex;
+			}
+			.control p {
+				margin: 0 0 8px 0;
+				text-align: center;
+			}
+			.control .disp {
+				margin: 4px 0 0 0;
+				text-align: center;
+			}
+		</style>
+		<style type="text/css" media="print">
+			.cursor, .title, .info, .info-btn, .controls, .topbar { display: none !important; }
+			.output { left: 0 !important; top: 0 !important; box-shadow: none; border: none; padding: 10ex 0 0 0; }			
+		</style>
+		<!-- jQuery -->
+		<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+		<script type="text/javascript">window.jQuery || document.write( '<script type="text/javascript" src="assets/ion_sound_1.3.0/js/vendor/jquery-1.10.2.min.js"><\/script>' )</script>
+		<!-- jQuery-UI -->
+		<link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/themes/smoothness/jquery-ui.css" />
+		<script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>		
+		<!-- ION.Sound -->
+		<script type="text/javascript" src="assets/ion_sound_1.3.0/js/ion-sound/ion.sound.min.js"></script>
+		
+		<script type="text/javascript">
+			// "use strict";
+			const bell_width = 69;
+			const max_width = 80;
+			const tab_width = 8;
+			const xpx = 12, ypx = 30, char_height = 20;
+			const margin_top = 40, margin_left = 30;
+			const max_brokenness = 99;
+			const max_ink_level = 600;
+			const shifted = {
+				'§': '±',
+				'1': '!',
+				'2': '@',
+				'3': '£',
+				'4': '$',
+				'5': '%',
+				'6': '^',
+				'7': '&',
+				'8': '*',
+				'9': '(',
+				'0': ')',
+				'-': '_',
+				'=': '+',
+				'[': '{',
+				']': '}',
+				';': ':',
+				'\'': '"',
+				'\\': '|',
+				',': '<',
+				'.': '>',
+				'/': '?',
+				'`': '~',
+			};
+			var real_shifted = {};
+			var x = max_width * xpx / 2;
+			var y = ypx;
+			var backspaces = 0;
+			var vmid = $(window).height() / 2;
+			var hmid = $(window).width() / 2;
+			var voffset = {};
+			var broken = {};
+			var brokenness = 20;
+			var ink_remaining = 400;
+			var ink_variation = 0.3;
+			var keydown_mutex = false;
+			var keypress_mutex = false;
+			var keydown_keycode = false;
+			var shift_mutex = false;
+			var alt_mutex = false;
+			var capslock_pressed_recently = false;
+			var started = false;
+			var redshift = false;
+			var shift_lock = false;
+			var redshift_lock = false;
+
+			function start() {			
+				$('.info').hide();
+				$('.info-btn, .output, .cursor').show();
+				started = true;
+			}
+			function stop() {
+				$('.info-btn, .output, .cursor').hide();
+				$('.info').show();
+				started = false;
+			}
+			
+			function keydown_capslock(e) {
+				// If already locked, unlock
+				if (shift_lock || redshift_lock) {
+					shift_lock = false;
+					redshift_lock = false;
+					$.ionSound.play('typewriter-keyup-2');
+				}
+				// Otherwise, lock whatever is being held
+				if (e.shiftKey) {
+					shift_lock = true;
+				}
+				if (redshift) {
+					redshift_lock = true;
+				}
+			}
+
+			function keydown_redshift(e) {	
+				e.preventDefault();					
+				if (redshift_lock) {
+					return false;
+				}
+				$.ionSound.play('typewriter-spacebar');
+				redshift = true;
+			}				
+
+			function keydown_shift(e) {
+				if (shift_mutex || shift_lock) {
+					return false;
+				}
+				$.ionSound.play('typewriter-spacebar');
+				shift_mutex = true;
+			} 
+			
+			function keydown_alt(e) {
+				e.preventDefault();
+				if (alt_mutex) {
+					return false;
+				}
+				$.ionSound.play('typewriter-spacebar');
+				alt_mutex = true;
+			}
+
+			function keydown_enter(e) {
+				// Although this is a keydown handler, it must also set keypress_mutex to prevent chars being typed during a return
+				// as it apparently does not cause a keypress event itself.
+				keypress_mutex = true;				
+				e.preventDefault();
+				// If we're not already at the beginning of the line, start playing the return motion sound
+				if (x > 0) {
+					$.ionSound.play('typewriter-carriage-return-main');
+				}
+				$('.output').append('<br/>');
+				line_length = x / xpx;
+				x = 0;
+				backspaces = 0;
+				y += ypx;
+				return_time = 13 * line_length;
+				$('.output').animate({
+					top: (vmid - y) + 'px',
+				}, 100).animate({
+					left: (hmid - x) + 'px',
+				}, return_time, function() {
+					// When the movement has finished, stop playing the motion sound, play the stop sound, and release the mutexes 
+					$.ionSound.stop('typewriter-carriage-return-main');
+					$.ionSound.play('typewriter-carriage-return-stop');
+					// Do a little wobble
+					$('.output').animate({
+						left: (hmid - x + 3) + 'px',
+						top: (vmid - y + 2) + 'px',
+					}, 100).animate({
+						left: (hmid - x) + 'px',
+						top: (vmid - y) + 'px',
+					}, 100);
+					keydown_mutex = false;
+					keypress_mutex = false;
+					keydown_keycode = false;
+				}); 
+			}
+			
+			function keydown_cursor_up(e) {
+				e.preventDefault();
+				if (y > 0) {
+					y -= (ypx / 4);
+					$.ionSound.play('typewriter-spacebar');
+					move_page();
+				}
+			}
+
+			function keydown_cursor_down(e) {
+				e.preventDefault();
+				$.ionSound.play('typewriter-spacebar');
+				y += (ypx / 4);
+				move_page();
+			}
+
+			function keydown_cursor_left(e) {
+				e.preventDefault();
+				if (x > 0) {
+					x -= xpx;
+					backspaces++;
+					$.ionSound.play('typewriter-spacebar');
+					move_page();
+				} 
+			} 
+
+			function keydown_cursor_right(e) {
+				e.preventDefault();
+				advance_one_space();
+				$.ionSound.play('typewriter-spacebar');
+				move_page();
+			} 
+			
+			// shared between keydown_cursor_right() and keypress()
+			function advance_one_space() {
+				if ((x / xpx) < max_width) {
+					x += xpx;
+				} else {
+					backspaces++; // Fudge hard right margin without position:absolute
+				}
+			}
+
+			function keydown_tab(e) {
+				e.preventDefault(); // Don't lose focus
+				var oldx = x;
+				if (e.shiftKey || shift_lock) {
+					var prev_tab_stop = ((x / xpx) % tab_width);
+					if (prev_tab_stop == 0) {
+						prev_tab_stop = tab_width;
+					} 
+					if ((x / xpx) - prev_tab_stop < 0) {
+						prev_tab_stop = x;
+					}
+					x -= (prev_tab_stop * xpx); 
+					backspaces += prev_tab_stop;
+				} else {
+					var next_tab_stop = tab_width - ((x / xpx) % tab_width);
+					if (next_tab_stop == 0) {
+						next_tab_stop = tab_width;
+					} else if ((x / xpx) + next_tab_stop > max_width) {
+						next_tab_stop = max_width - (x / xpx);
+					}
+					x += (next_tab_stop * xpx);
+				}
+				if ((oldx / xpx) < bell_width && (x / xpx) >= bell_width) {
+					$.ionSound.play('typewriter-bell-2');
+				}	else {				
+					$.ionSound.play('typewriter-spacebar');
+				}
+				move_page();
+			}
+			
+			function keypress(e) {
+				// Prevent browser special key actions as long as ctrl/alt/cmd is not being held
+				if (! e.altKey && ! e.ctrlKey && ! e.metaKey) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
+				// Don't handle keys that are handled by keydown functions
+				// These will all have charCode 0, which is the only way of distinguishing them from chars which have the
+				// same value on Chrome which sets keyCode to match charCode in keypress handlers. (eg in a keydown handler
+				// keyCode 39 is right-arrow, while in a keypress handler, it's the quote character ' )
+				if (e.charCode == 0) {
+					// Note the use of keyCode here so these numbers will match the keydown ones
+					switch (e.keyCode) {
+						case 8:
+						case 9:
+						case 13:
+						case 37:
+						case 38:
+						case 39:
+						case 40:
+						case 16:
+						case 18:
+						case 20:
+						case 27:
+						case 17:
+						case 224:
+							return false;
+					}				
+				}
+				if (keypress_mutex) {
+					return false;
+				}
+				keypress_mutex = true;
+				
+				var nosound = false;
+				
+				var c;
+				c = String.fromCharCode(e.charCode); // Always uppercase
+				if ( e.charCode >= 65 && e.charCode <= 90 ) {
+					// We only want upper case letters if shifted (so caps lock doesn't do them if it's only being used for colourshift lock)
+					if (! e.shiftKey && ! shift_lock) {
+						c = c.toLowerCase();
+					} 
+				} else if (e.shiftKey) {
+					real_shifted[keydown_keycode] = c; // Learn the real shifted char
+					// console.log("Storing " + keydown_keycode + " -> " + c);
+    		} else if (shift_lock) {
+    			if (keydown_keycode > 0 && real_shifted[keydown_keycode]) {
+						// Use the real shifted char if we learned it
+    				c = real_shifted[keydown_keycode]; 
+						// console.log("Retrieving " + keydown_keycode + " -> " + c);
+    			} else if (shifted[c]) {
+						// Otherwise fall back to the default shifted char mapping
+						// console.log("Using default shiftmap for " + c)
+    				c = shifted[c]; 
+						// console.log(" -> " + c);
+    			}
+  		  }
+
+				if (c.match(/\S/)) {
+					ink_remaining--;
+				}
+												
+				// Choose a greyscale colour with a random element to simulate uneven key pressure and ribbon ink
+				var ink_level = (ink_remaining > 0) ? ink_remaining / 400 - ink_variation + Math.random() * ink_variation : 0;
+								
+				// Vertical offset
+				if (! (c in voffset)) {
+					voffset[c] = {
+						threshold: Math.floor(Math.random() * 99) + 1, // 1..99
+						direction: Math.floor(Math.random() * 3) - 1, // -1..+1
+					}						
+				}
+				
+				extra_offset = 0;
+				// Extra offset if highly broken
+				extra_offset = Math.floor(Math.random() * brokenness / 25); // 0 at b<50, 0..1 at 50<=b<75, 0..2 at b>=75
+				if (voffset[c].direction < 0) {
+					extra_offset = -extra_offset;
+				}
+				
+				this_voffset = (voffset[c].threshold <= brokenness) ? Math.round(voffset[c].direction * brokenness / 33) : 0;
+				this_voffset += extra_offset;
+				
+				// If brokenness >75%, let some keys be permanently broken.
+				// The chance of a key being broken increases with brokenness; once broken, it remains so until brokenness is reduced
+				// below 75% whereupon they are all fixed.
+				if (brokenness > 75) {
+					// Randomly break keys with a likelihood and a maximum number of broken keys that depend on the brokenness level
+					if (c != '&nbsp;' && (broken[c] || (Math.random() * brokenness > 70 && Math.random() < 0.4 && Object.keys(broken).length < (brokenness - 75) / 5))) { 
+						if (Math.random() > 0.7) {
+							broken[c] = '&#9608;'; // full block - as if the embossed character has fallen off the arm.
+						} else {
+							broken[c] = '&nbsp;'; // as if the key doesn't work at all
+							nosound = true;
+						}
+					}
+				} else {
+					broken = {};
+				}
+
+				// Output the character, unless it's broken
+				if (broken[c]) {
+					$('.output').append('<div style="position: absolute; top: ' + (y + margin_top) + 'px; left: ' + (x + margin_left) + 'px; color: rgba(0, 0, 0, ' + ink_level + ');">' + broken[c] + '</div>');
+				} else {
+					var black_height = ypx;
+					var black_height_style = '', red_height_style = '';
+					// TODO: Make high brokenness do partial red chars sometimes without redshift
+					//       The relative probabilities of black and red need to be the opposite of what they are for redshift 
+					//       but without reversing the relative positions. voffset also needs to work oppositely.
+					//       I think I need to track the position of the print head relative to the ribbon.
+					if (redshift || redshift_lock) {
+						if (Math.random() < brokenness / 100) {
+							// Colour part of the character black, to simulate not pressing Colour Shift hard enough.
+							// Black height depends on brokenness level and voffset. As the black creeps in from the top,
+							// a char with high negative voffset (shifted upwards) will be more blackened.
+							// +ypx-char_height because that is empty space before the top of the visible character.
+							black_height = Math.floor(Math.random() * ypx * brokenness / 250) + ypx - char_height - this_voffset;
+							if (black_height < 0) {
+								black_height = 0; // All red
+								red_height_style = '';
+							} else {
+								black_height_style = 'clip: rect(0px, ' + xpx + 'px, ' + black_height + 'px, 0px); ';
+								red_height_style   = 'clip: rect(' + black_height + 'px, ' + xpx + 'px, ' + ypx + 'px, 0px); ';
+							}
+						} else {
+							black_height = 0;
+							red_height_style = '';
+						}
+						// Output the (possibly partial) character in red					
+						$('.output').append('<div style="position: absolute; top: ' + (y + this_voffset + margin_top) + 'px; left: ' + (x + margin_left) + 'px; color: rgba(255, 0, 0, ' + ink_level + '); ' + red_height_style + '">' + c + '</div>');
+					} 
+					if (black_height > 0) {
+						// Output the (possibly partial) character in black
+						$('.output').append('<div style="position: absolute; top: ' + (y + this_voffset + margin_top) + 'px; left: ' + (x + margin_left) + 'px; color: rgba(0, 0, 0, ' + ink_level + '); ' + black_height_style + '">' + c + '</div>');
+						
+						// Maybe output further subcropped character(s) in black to make the colouring more uneven
+						for (var subclips = 0; subclips < 3; subclips++) {
+							var subclip_right = Math.floor(Math.random() * xpx) + 1;
+							var subclip_left = Math.floor(Math.random() * subclip_right);
+							var subclip_bottom = Math.floor(Math.random() * black_height) + 1;
+							var subclip_top = Math.floor(Math.random() * subclip_bottom);
+							var r = Math.random();
+							var sign = Math.random() < 0.5 ? -1 : 1;
+							var b = brokenness / (max_brokenness + 1); // max_brokenness is 99, but let's use a percentage
+							var i = ink_remaining / max_ink_level;
+							// Thanks to John Valentine for help with the following formula
+							var subclip_opacity = i * (0.5 + 0.5 * Math.sqrt(r * b) * sign); 
+							var subclip_color = 'color: rgba(0, 0, 0, ' + subclip_opacity + '); ';
+							var subclip_clip = 'clip: rect(' + subclip_top + 'px, ' + subclip_right + 'px, ' + subclip_bottom + 'px, ' + subclip_left + 'px); ';
+							// console.log("sign: " + sign + " r: " + r + " b:" + b + " i: " + i + " result: " + subclip_opacity);
+							$('.output').append('<div style="position: absolute; top: ' + (y + this_voffset + margin_top) + 'px; left: ' + (x + margin_left) + 'px; ' + subclip_color + subclip_clip + '">' + c + '</div>');
+						}
+					}
+				}
+
+				advance_one_space();
+				
+				if ((x / xpx) == bell_width) {
+					$.ionSound.play('typewriter-bell-2');
+				} else if (! nosound) {
+					// $.ionSound.stop('typewriter-keyup-2');
+					$.ionSound.play('typewriter-keydown-2');
+				} 
+
+				// Update ink level slider and disp
+				$('#ctrl_inklevel').slider('option', 'value', ink_remaining);
+				$('#disp_inklevel').html(ink_remaining);
+			}
+
+			function keydown_nonmod(e) {
+				// Only one non-modifier key may be pressed at a time
+				if (keydown_mutex) {
+					return false;
+				}
+				keydown_mutex = true;
+				// Because the keypress event does not make keycode available for normal chars, we have to store it in the keydown handler
+				// so it can be referenced in the keypress handler to relate shifted chars to their keys so we can retrieve them 
+				// when shiftlock is on. 
+				keydown_keycode = e.keyCode; 
+				switch (e.which) {
+					case 9:  // tab
+						keydown_tab(e);
+						break;
+					case 13: // enter
+						keydown_enter(e);
+						break;
+					case 8:  // backspace
+					case 37: // left-arrow
+						keydown_cursor_left(e);
+						break;
+					case 38: // up-arrow
+						keydown_cursor_up(e);
+						break;
+					case 32: // space
+					case 39: // right-arrow - only needs special handling because Chrome doesn't produce a keypress event for it
+						keydown_cursor_right(e);
+						break;
+					case 40: // down-arrow
+						keydown_cursor_down(e);
+						break;
+					default: // all other characters are handled by the keypress handler
+				}
+			}
+			
+			function keydown(e) {	
+				if (! started) {
+					start();
+				}
+				switch (e.which) {
+					case 16:
+						keydown_shift(e);
+						break;
+					case 18:
+						keydown_alt(e);
+						break;
+					case 20:
+						// To cope with Chrome/Mac, FF/Mac, and all Windows&Linux browsers work in 3 different ways wrt caps lock,
+						// we have to jump through extra hoops. Start a timer here, and check in keyup.
+						capslock_pressed_recently = true;
+						setTimeout(function() {
+							capslock_pressed_recently = false;
+						}, 1500);
+						keydown_capslock(e);
+						break;
+					case 27: // esc
+						keydown_redshift(e);
+						break;
+					case 17:	// ctrl - ignore
+					case 224: // cmd - ignore
+						break;
+					default:
+						keydown_nonmod(e);
+				}
+				return false;
+			}
+			
+			function move_page() {
+				$('.output').animate({
+					top: (vmid - y) + 'px',
+					left: (hmid - x) + 'px',
+				}, 20);
+			}
+
+			// Handler for keyup events
+			function keyup(e) {
+				if (e.which == 20) {
+					keyup_capslock();
+				} else if (shift_mutex && e.which == 16 && ! e.shiftKey) {
+					if (! shift_lock) {
+						$.ionSound.play('typewriter-keyup-2');
+					}
+					shift_mutex = false;
+				}	else if (alt_mutex && e.which == 18 && ! e.altKey) {
+					$.ionSound.play('typewriter-keyup-2');
+					alt_mutex = false;
+				}	else if (redshift && e.which == 27) {
+					if (! redshift_lock) {
+						$.ionSound.play('typewriter-keyup-2');
+					}
+					redshift = false;
+				} else if (keydown_mutex && e.which != 13) { // CR does its own sound and mutex release
+					// Play the key release sound and release the mutexes after a short delay
+					setTimeout(function() {
+						$.ionSound.play('typewriter-keyup-2');
+						keydown_mutex = false;
+						keypress_mutex = false;
+						keydown_keycode = false;
+					}, 65);
+					if (keypress_mutex) {
+						move_page();
+					}
+				}
+			}
+
+			// Special keyup handling is necessary for caps lock
+			// On Firefox/Mac, each press of caps lock only fires keydown
+			// On Chrome/Mac, the first press of caps lock only fires keydown, and the second press only fires keyup,
+			// as if the key had been held down for all the time that its light was on. (Safari is the same, but we discourage
+			// use of Safari anyway).
+			// On other browsers, it behaves like a normal key, ie it gets a keydown event when first pressed, 
+			// possibly further keydown events on auto-repeat, and a keyup event when released.
+			// So everything apart from Chrome/Mac can be handled by a keydown handler as long as it's not held down
+			// long enough to auto-repeat. But for Chrome/Mac we might need to act on a keyup. 
+			// So when there's a capslock keydown event, we set capslock_pressed_recently=true and set a timer to set
+			// it to false after an interval. Then on a keyup event, here we check that flag; if it's still true, 
+			// assume it was a single press event keydown+keyup
+			function keyup_capslock() {
+				if (! capslock_pressed_recently) {
+					// Looks like this is a lone keyup event on a webkit browser which means the key was pressed a second time.
+					// So fire the keydown handler.
+					keydown_capslock();
+				}
+			}
+
+			// onLoad setup
+			$(function() {
+				// Check browser supports rgba() colours (stolen from Modernizr)
+				var rgba_check = function() {
+					var elem = document.createElement('div');
+    			var style = elem.style;
+    			style.cssText = 'background-color:rgba(150,255,150,.5)';
+    			return ('' + style.backgroundColor).indexOf('rgba') > -1;
+    		};
+    		if (! rgba_check()) {
+    			$('.warning-rgba').dialog();
+    			return false;
+    		}
+    		if (navigator.userAgent.match(/[Ss]afari/) && ! navigator.userAgent.match(/[Cc]hrome/)) { // Not perfect but this is only for advisory purposes
+    			$('.warning-safari').dialog();
+    		}
+				// Sliders
+				$('#ctrl_brokenness').slider({
+					min: 0,
+					max: max_brokenness,
+					value: brokenness,
+					slide: function(event, ui) {
+						$('#disp_brokenness').html(ui.value);
+					},						
+					change: function(event, ui) {
+						brokenness = ui.value;
+						ink_variation = 1.0 * brokenness / 100;
+					},
+				});
+				$('#ctrl_inklevel').slider({
+					min: 0,
+					max: max_ink_level,
+					value: ink_remaining,
+					slide: function(event, ui) {
+						$('#disp_inklevel').html(ui.value);
+					},						
+					change: function(event, ui) {
+						ink_remaining = ui.value;
+					},
+				});
+				$('#disp_brokenness').html(brokenness);
+				$('#disp_inklevel').html(ink_remaining);
+				
+				move_page();
+				$('.cursor').css('top', vmid + 46).css('left', hmid + 31); // Magic numbers basically arrived at by trial and error...
+				$.ionSound({
+					path: "assets/typewriter_sounds/",
+    			sounds: [
+        		"typewriter-keydown-2",
+        		"typewriter-keyup-2",
+        		"typewriter-carriage-return-main",
+        		"typewriter-carriage-return-stop",
+        		"typewriter-spacebar",
+        		"typewriter-bell-2",
+    			],
+    			multiPlay: true,
+				});
+				$(document)
+				.on('keydown', function(e) { // I originally used keypress, but this ignores backspace on Chrome
+					// console.log("keydown: " + e.which + " keydown_mutex " + keydown_mutex + " keypress_mutex " + keypress_mutex);
+					keydown(e); 
+				})
+				.on('keypress', function(e) {
+					// console.log("keypress: " + e.which + " keydown_mutex " + keydown_mutex + " keypress_mutex " + keypress_mutex);
+					keypress(e);
+				})
+				.on('keyup', function(e) {
+					// console.log("keyup: " + e.which + " keydown_mutex " + keydown_mutex + " keypress_mutex " + keypress_mutex);
+					keyup(e);
+				}); // on()
+			}); //$()
+		</script>
+        <link href='http://fonts.googleapis.com/css?family=Special+Elite' rel='stylesheet' type='text/css'>
+	</head>
+	<body>
+		<div class="topbar">
+			<div class="title">
+				<h1><img src="images/overtype_logo.png" alt="OverType" height="40"></h1>
+				<h2 style="margin-bottom: 0">The Over-The-Top Typewriter Simulator</h2>
+			</div>
+			<div class="controls">
+				<div class="control">
+					<p>
+						Brokenness
+					</p>
+					<div class="slider" id="ctrl_brokenness">
+					</div>
+					<div class="disp" id="disp_brokenness">
+					</div>
+				</div>
+				<div class="control">
+					<p>
+						Ribbon inkiness
+					</p>
+					<div class="slider" id="ctrl_inklevel">
+					</div>
+					<div class="disp" id="disp_inklevel">
+					</div>
+				</div>
+			</div>
+		</div><!-- /topbar -->
+		
+		<div class="info-btn">
+			<button onclick="stop()">Show instructions/info page</button>
+		</div>
+		<div class="info">
+			<h2>
+				Why?
+			</h2>
+			<p>
+				It started because I was trying to tell my kids about how typewriters worked (because of course they've never seen one), and all the existing typewriter simulators that I could find on the web get one very basic thing wrong - when you press backspace, they erase the character you just typed, like a computer. On a real typewriter, backspace simply moves the carriage back one space, allowing you to overtype a previously typed character. Erasing requires Tipp-Ex or suchlike.
+			</p>
+			<p>
+				One day my youngest son suggested I should write one that works the right way and allows overtyping. This seemed like it would be an interesting challenge... and indeed it was. The first version took me about an hour. 
+			</p>
+			<p>
+				Since then it's all got a bit out of hand as I strive to make the program's output "worse" by trying to faithfully re-create some of the other interesting eccentricities of typewriters that have been eliminated in the computer age, such as wobbly and unevenly-inked characters. Thanks to all the beta testers for their great suggestions and feedback.
+			</p>
+			<noscript>
+				<p style="font-size: 36px">
+					<b>You need to <a href="http://enable-javascript.com">enable Javascript in your browser</a> for this to work.</b>
+				</p>
+			</noscript>
+			<h2>
+				Instructions
+			</h2>
+			<div class="instruct">
+				<ul>
+					<li>You need to be on a computer with a keyboard. Mobile touchscreen devices won't work (see Known Bugs below).</li>
+					<li>Make sure you have your sound turned on for the fully-immersive experience!</li>
+					<li>If it stops working or to see this text again, just reload the page.</li>
+					<li>As well as just typing normally, you might like try these:
+						<ul>
+							<li>You can use the cursor keys to move around. The up and down cursors move the roller by a quarter-line.</li>
+							<li>Use [tab] and [shift][tab] to jump forward or back to the nearest tab stop.</li>
+							<li>[esc] is "colour shift", which gives you red text. Or, sometimes, only partly so...</li>
+							<li>[shift] and/or [esc] can be locked down by holding one or both and pressing [caps lock] (effectively "shift lock"). Press [caps lock] again to unlock.</li>
+							<li>Move the sliders (see below)</li>
+							<li>Do a dollar sign the proper way by overtyping a capital <b>S</b> with a <b>|</b> (vertical bar/pipe)</li>
+						</ul>
+					</li>
+					<li>Ready? Just start typing, or click here if you prefer: <button style="font-size: large" onclick="start()">START!</button></li>
+				</ul>
+			</div>
+			<h2>
+				Sliders
+			</h2>
+			<p>
+				Try out the sliders at the top of the screen. The ribbon ink reduces linearly, which is not how a real typewriter would work but gives a more pleasing result. The "brokenness" controls how uneven the vertical alignment, ink density and colour shift are, and higher settings cause keys to start breaking (once a particular key has broken, it will never work again until you reduce the brokenness back down).
+			</p>
+			<h2>
+				Known bugs
+			</h2>
+			<ul>
+				<li>On Safari, the sounds are not synchronised. This is a Safari issue, and there doesn't seem to be anything I can do about it. Use Firefox or Chrome instead.</li>
+				<li>Because I have to use the 'keydown' and 'keyup' events rather than 'keypress', I get keycodes rather than characters, and have to map them to characters myself. If you don't have a UK Mac keyboard then some of the symbols probably will not match your keyboard.</li>
+				<li>As it stands, this site is unlikely ever to work on a mobile touchscreen device, due to the problems of dealing with an on-screen keyboard. If I use the device's own on-screen keyboard there are issues with forcing it to appear without a visible input field, keeping it there, working around it etc. I've tried making my own virtual keyboard instead (a bunch of <code>&lt;button&gt;</code>s with handlers attached to touch events) which kinda works but is rather sluggish, and there are issues with the sounds. I think for mobile use it will need to be a full-blown app with its own input handler, rather than a web app. I may attempt it at some point, if anyone really wants it.</li>
+			</ul>
+			<h2>
+				Improvements I'd like to make
+			</h2>
+			<ul>
+				<li>If you type too fast or try to type two keys at once, the mechanism should jam. Amazingly, this is the most commonly requested feature from the beta testers of this program. The only reason I haven't implemented it is the problem of designing a UI to represent unjamming it by picking the mechanism apart, and how to make your fingers inky and oily when you do it.</li>
+				<li>Provide virtual Tipp-Ex.</li>
+				<li>Further suggestions welcome (though remember this is just for fun!) to <a href="mailto:ben@uniqcode.com">ben@uniqcode.com</a>.</li>
+			</ul>
+			<h2>
+				Credits
+			</h2>
+			<p>
+				For Archie. Developed by Ben Wheeler @ <a href="http://uniqcode.com">UniqCode</a>, using <a href="http://jquery.com">jQuery</a> and
+				<a href="https://github.com/IonDen/ion.sound">IonSound</a>. Typewriter sound effects from <a href="http://freesound.org">Freesound</a> and <a href="http://www.soundjay.com">SoundJay</a>, some of them edited by me. Tested on Firefox27/Mac and Chrome32/Mac. 			
+			</p>
+			<h2>
+				Changelog
+			</h2>
+			<div class="changelog">
+				<h3>
+					version 1.24 (2014-03-16)
+				</h3>
+				<ul>
+					<li>Fix printing, which got broken in a previous version.</li>
+				</ul>
+				<h3>
+				<h3>
+					version 1.23 (2014-03-05)
+				</h3>
+				<ul>
+					<li>Do away with the off-screen textarea altogether; just bind the event handlers to $(document).</li>
+				</ul>
+				<h3>
+					version 1.22 (2014-02-27)
+				</h3>
+				<ul>
+					<li>Don't play the motion part of the CR sound if we are already at the beginning of the line (otherwise it was playing a tiny bit of it, which sounded bad).</li>
+					<li>Animate a little wobble at the stop part of a CR. It just seemed like the sound demanded it.</li>
+				</ul>
+				<h3>
+					version 1.21 (2014-02-26)
+				</h3>
+				<ul>
+					<li>Separated carriage return sound into motion and stop sounds. The motion sound length depends on the line length,
+    while the stop sound is the same for all.</li>
+  			</ul>
+				<h3>
+					version 1.20 (2014-02-26)
+				</h3>
+				<ul>
+					<li>Fix certain symbol characters not working since 1.19 (or possibly earlier on Chrome).</li>
+					<li>Fix colourshift lock always acting as caps lock too.</li>
+					<li>Fix shift lock. We have no way of determining in advance which symbols are produced by which shifted key on your particular keyboard layout; so, shift-lock starts off using my keyboard layout (UK Mac), but whenever you use shift (unlocked), it will learn the real symbol on the shift position of that key, and will thenceforth use that in shift-lock too.</li>
+					<li>Fix releasing shift/colourshift lock not working properly on Chrome/Mac. The fix for this is slightly shonky but can't be helped due to the insane differences between browsers on which events capslock fires.</li>
+					<li>Tweaks to timing and keydown/keyup sounds to try to improve responsiveness and make it a bit harder to type far too fast for the sounds to keep up.</li>
+				</ul>
+				<h3>
+					version 1.19 (2014-02-24)
+				</h3>
+				<ul>
+					<li>Moved handling of all printing characters to a keypress handler. This means I no longer have to manually map keycodes to characters, which in turn means that you should now get the correct symbol characters according to your own keyboard layout.</li>
+					<li>Movement keys (space, backspace, tab, and cursor keys) now all move on keydown, not keyup.</li>
+					<li>Provide a button to get the instructions page back.</li>
+					<li>Fix the Safari warning being shown to Chrome users (hopefully). Browser detection sucks.</li>
+				</ul>
+				<h3>
+					version 1.18 (2014-02-24)
+				</h3>
+				<ul>
+					<li>Bail if no rbga() support, and try to warn Safari users</li>
+				</ul>
+				<h3>
+					version 1.17 (2014-02-23)
+				</h3>
+				<ul>
+					<li>Renamed from "Ben's Super-Realistic Typewriter Simulator" to "OverType - The Over-The-Top Typewriter Simulator"</li>
+					<li>The '#' symbol is now available by pressing alt-3 (the standard, stupid as it is, for the Mac UK keyboard layout)</li>
+					<li>Vary the inkiness within each character, rather than just from one character to the next, by overlaying two random partial clips of each character atop itself with an opacity that depends on the sliders.</li>
+					<li>Somewhat refactored the keydown handler into more digestible chunks.</li>
+				</ul>
+				<h3>
+					version 1.16 (2014-02-18)
+				</h3>
+				<ul>
+					<li>Colour shift is now achieved by holding [esc], as holding [alt] caused unwanted side-effects from the OS acting on the key combo. Make sure the page has fully loaded before you press [esc], as otherwise the browser will interpret it as a "stop loading" command.</li>
+					<li>When colour shift partially "fails", instead of printing the whole character in red and then overprinting part of it in black, which sometimes meant the red was somewhat visible beneath the black part, each part of the character is now clipped so they do not overlap.</li>
+					<li>Improved the algorithm for deciding how often, and by how much, colour shift "fails".</li>
+					<li>Shift, colour shift, or both, can now be locked on by holding them down and pressing caps lock. Press caps lock again to release the lock. Note that unlike a computer's caps lock, a typewriter's shift lock behaves exactly as if shift were held down, so for example number keys produce symbols.</li>
+				</ul>
+				<h3>
+					version 1.15 (2014-02-15)
+				</h3>
+				<ul>
+
+					<li>A better algorithm for mapping Brokenness to vertical offset.
+					Rather than having a fixed offset for each character, and simply adding more
+					random offset when Brokenness is increased, we now choose an offset and threshold
+					for each character. If Brokenness is above the threshold for that char, it will be
+					offset by its consistent amount. This offset may then be randomly boosted (or not)
+					by 1 or 2px at high Brokenness levels.</li>
+
+					<li>Brokenness now maxes at 99%, given that 100% brokenness would imply being
+					completely non-functional.</li>
+
+					<li>Show the values of the sliders as numbers below them.</li>
+					
+					<li>Reduce max inkiness.</li>
+				</ul>
+				<h3>
+					version 1.14 (2014-02-12)
+				</h3>
+				<ul>
+					<li>2-colour ribbon. Hold [alt] to type red characters. Sometimes these will randomly be only partially red, to simulate failing to press the colour shift key hard enough. The frequency and amount of this failure is affected by the Brokenness control.</li>
+				</ul>
+				<h3>
+					version 1.13 (2014-02-12)
+				</h3>
+				<ul>
+					<li>Sliders to control brokenness and inkiness.</li>
+					<li>A high brokenness setting results in more wobbly and unevenly-inked text. Above 75%, the keys start to randomly break as you type, either failing to work at all (broken armature) or occasionally printing a solid block (armature works but letter has fallen off). A broken key never recovers until the brokenness is reduced back below this threshold, which unbreaks all of them.</li>
+					<li>The inkiness slider also monitors your current ink level - ie it reduces as you type.</li>
+					<li>Start from the centre of the top line of the page, instead of the top-left.</li>
+				</ul>
+				<h3>
+					version 1.12 (2014-02-12)
+				</h3>
+				<ul>
+					<li>Cursor key support. Left and right are the same as backspace and space. Up and down feed the paper by a quarter of a line height at a time.</li>
+					<li>Use a position:absolute div for each character within position:relative output block. I had hoped this would allow me to do away with the input textarea altogether and bind the key handlers to $(document), but alas even with preventDefault(), some keypresses were still occasionally being passed through to the browser, causing it to scroll (space), go back a page (backspace) etc. Still, this way of positioning seems more flexible so I kept it.</li>
+				</ul>
+				<h3>
+					version 1.11 (2014-02-12)
+				</h3>
+				<ul>
+					<li>Change alpha level instead of colour to vary ink level. This seems to look more realistic and also means that
+					if you overtype characters they get darker as they should.</li>
+					<li>Reduce the likelihood of characters having vertical offset (while keeping the range the same at +/- 1px).</li> 
+					<li>Play the CR bell for tabs and spaces as well as normal keys.</li>
+					<li>Fix lines sometimes wrapping if you overtype a lot after a lot of backspaces.</li>
+				</ul>
+				<h3>
+					version 1.10 (2014-02-11)
+				</h3>
+				<ul>
+					<li>fix CSS font-family (whoops)</li>
+					<li>per-char vertical offset was not being used consistently</li>
+				</ul>		
+				<h3>
+					version 1.9 (2014-02-11)
+				</h3>
+				<ul>
+					<li>Stylesheet for printing</li>
+					<li>Increased space between lines</li>
+				</ul>
+				<h3>
+					version 1.8 (2014-02-11)
+				</h3>
+				<ul>
+					<li>The ribbon ink now gradually runs out, so the text becomes lighter the more characters you type.</li>
+					<li>Reduced vertical offset, as it was just a tad too wibbly-wobbly.</li>
+				</ul>
+				<h3>
+					version 1.7 (2014-02-11)
+				</h3>
+				<ul>
+					<li>Prevent the hidden textarea from losing focus. It should now be safe to click anywhere on the page.</li>
+					<li>Implemented tab stops every 8 chars - press TAB to jump to the next tab stop, SHIFT-TAB jumps to the previous one.</li>
+				</ul>
+				<h3>
+					version 1.6 (2014-02-11)
+				</h3>
+				<ul>
+					<li>If both shift keys are pressed, don't do the keyup sound until both are released.</li>
+					<li>Round the vertical offset to an integer number of pixels.</li>
+					<li>Don't release the keydown mutex until animations have finished. This limits typing speed and prevents being able to type a character onto the next line while a carriage return is in progress.</li>
+				</ul>
+				<h3>
+					version 1.5 (2014-02-11)
+				</h3>
+				<ul>
+					<li>Use a separate mutex for the shift key.</li>
+					<li>Position the page on load so it doesn't jump after the first keypress.</li>
+				</ul>
+				<h3>
+					version 1.4 (2014-02-11)
+				</h3>
+				<ul>
+					<li>Move paper on keyup, not keydown.</li>
+					<li>Use a mutex to ensure only one keypress is handled at a time, instead of a timeout (also fixes a long-held key generating two characters).</li>
+					<li>Each character now has a consistent vertical offset (randomly chosen at the start), instead of randomly changing each time.</li>
+					<li>Drop shadow on page.</li>
+					<li>Fix page moving too far vertically on CR.</li>
+				</ul>
+				<h3>
+					version 1.3 (2014-02-10)
+				</h3>
+				<ul>
+					<li>The typed character now always appears in the centre of the screen; the "paper" moves.
+		Movement of paper and carriage return are animated.</li>
+					<li>A basic cursor to show where the next character will appear. This could eventually become an animated print head.</li>
+					<li>Wibbly-wobbly text: A small random vertical offset is added to each character (suggested by David Gosnell)</li>
+				</ul>
+
+				<h3>
+					version 1.2 (2014-02-10)
+				</h3>
+				<ul>
+					<li>Don't allow backspacing past the beginning of the line.</li>
+				</ul>
+				<h3>
+					version 1.1 (2014-02-10)
+				</h3>
+				<ul>
+					<li>Separate sounds when keys are pressed and released, and for the shift key.</li>
+					<li>Better (manual) carriage return sound.</li>
+					<li>Limit the speed at which you can type.</li>
+					<li>If you keep typing past the bell and hit the end of the line (80 characters), the carriage stops instead of continuing. In other words there is now a hard line length limit.</li>
+					<li>Punctuation characters are handled (these are based on my UK Mac keyboard; unless you have the same keyboard some characters will probably be "wrong" for you.).</li>
+					<li>Random variation of colour to simulate variations in key pressure and uneven ribbon ink.</li>
+					<li>Hide all the informational text when you start typing, partly to give more space for both information and typing, but mostly to dodge the problem of trying to work out where to position the typewriter output so it doesn't crash the info.</li>
+				</ul>
+				<h3>
+					version 1.0 (2014-02-09)
+				</h3>
+			</div><!-- /changelog -->			
+		</div>
+		<div class="output">
+		</div>
+		<div class="cursor">
+		</div>
+		<!-- Warnings which may be displayed modally -->
+		<div class="warning-rgba" style="display: none; font-size: 18px; color: red;">
+			<b>You <em>really</em> need to upgrade your web browser.</b> OverType will not work on your browser because it does not support rgba() colours. They've been around for a long time now, so your browser must be pretty old. Using a very old web browser to surf the net means an ever-increasing number of sites will not work properly for you, and may be <em>unsafe</em> due to security holes which have long-since been fixed. Do yourself a favour and upgrade to a modern browser. 
+		</div>
+		<div class="warning-safari" style="display: none">
+			It looks like you are using Safari. I recommend you use a different browser. At the time of this writing, Safari has a bug (or what Apple consider a deliberate feature) which makes it impossible to synchronise the sound effects properly. Any modern Firefox, Chrome or IE will give you a better result.
+		</div>
+	</body>
+</html>
+
