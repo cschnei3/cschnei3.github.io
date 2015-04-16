@@ -4,7 +4,8 @@ $(document).ready(function(){
 	var ctx = canvas.getContext("2d");
 	var w = $("#canvas").width();
 	var h = $("#canvas").height();
-	
+	var image = new Image(); 
+    image.src = "../pics/dogs.jpg";
 	//Lets save the cell width in a variable for easy control
 	var cw = 10;
 	var highscore = 0;
@@ -58,11 +59,9 @@ $(document).ready(function(){
 	{
 		//To avoid the snake trail we need to paint the BG on every frame
 		//Lets paint the canvas now
-        var pattern = ctx.createPattern("../pics/dogs.jpg", repetition);
+        var pattern = ctx.createPattern(image, repetition);
         ctx.fillStyle = pattern;
         ctx.fillRect(0, 0, w, h);
-		ctx.fillStyle = "white";
-		ctx.fillRect(0, 0, w, h);
 		ctx.strokeStyle = "black";
 		ctx.strokeRect(0, 0, w, h);
 		
