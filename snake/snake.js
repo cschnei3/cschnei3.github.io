@@ -7,15 +7,17 @@ $(document).ready(function(){
 	
 	//Lets save the cell width in a variable for easy control
 	var cw = 10;
-	var d;
+	var highscore = 0;
+    var d;
 	var food;
-	var score;
+	var score = 0;
 	
 	//Lets create the snake now
 	var snake_array; //an array of cells to make up the snake
 	
 	function init()
 	{
+        if(score > highscore) highscore = score;
 		d = "right"; //default direction
 		create_snake();
 		create_food(); //Now we can see the food particle
