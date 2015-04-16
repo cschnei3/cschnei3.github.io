@@ -17,11 +17,11 @@ $(document).ready(function(){
 	
 	function init()
 	{
-        if(score > highscore) highscore = score;
 		d = "right"; //default direction
 		create_snake();
 		create_food(); //Now we can see the food particle
 		//finally lets display the score
+        if(score > highscore) highscore = score;
 		score = 0;
 		
 		//Lets move the snake now using a timer which will trigger the paint function
@@ -120,6 +120,8 @@ $(document).ready(function(){
 		//Lets paint the score
 		var score_text = "Score: " + score;
 		ctx.fillText(score_text, 5, h-5);
+        var highscore_text = "HighScore: " + highscore;
+        ctx.fillText(highscore_text, w-55, h-5);
 	}
 	
 	//Lets first create a generic function to paint cells
