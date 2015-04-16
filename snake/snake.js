@@ -118,7 +118,7 @@ $(document).ready(function(){
 		//Lets paint the food
 		paint_cell(food.x, food.y);
 		//Lets paint the score
-		var score_text = "Score: " + score;
+		var score_text = "ssscore: " + score;
 		ctx.fillText(score_text, 5, h-5);
         var highscore_text = "HighScore: " + highscore;
         ctx.fillText(highscore_text, w-55, h-5);
