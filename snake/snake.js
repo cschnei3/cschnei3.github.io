@@ -58,6 +58,9 @@ $(document).ready(function(){
 	{
 		//To avoid the snake trail we need to paint the BG on every frame
 		//Lets paint the canvas now
+        var pattern = ctx.createPattern("../pics/dogs.jpg", repetition);
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, 0, w, h);
 		ctx.fillStyle = "white";
 		ctx.fillRect(0, 0, w, h);
 		ctx.strokeStyle = "black";
