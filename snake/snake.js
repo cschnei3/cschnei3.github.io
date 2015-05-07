@@ -136,15 +136,15 @@ $(document).ready(function(){
 	{
 		ctx.fillStyle = getRandomColor();
 		ctx.fillRect(x*cw, y*cw, cw, cw);
-		ctx.strokeStyle = "white";
+		ctx.strokeStyle = "black";
 		ctx.strokeRect(x*cw, y*cw, cw, cw);
 	}
 		//Lets first create a generic function to paint cells
 	function paint_cell(x, y)
 	{
-		ctx.fillStyle = getRandomColor();
+		ctx.fillStyle = "white"
 		ctx.fillRect(x*cw, y*cw, cw, cw);
-		ctx.strokeStyle = "white";
+		ctx.strokeStyle = "black";
 		ctx.strokeRect(x*cw, y*cw, cw, cw);
 	}
 	
