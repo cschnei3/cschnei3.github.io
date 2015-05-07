@@ -115,15 +115,31 @@ $(document).ready(function(){
 		}
 		
 		//Lets paint the food
-		paint_cell(food.x, food.y);
+		paint_food_cell(food.x, food.y);
 		//Lets paint the score
 		var score_text = "Score: " + score;
 		ctx.fillText(score_text, 5, h-5);
         var highscore_text = "HighScore: " + highscore;
         ctx.fillText(highscore_text, w-85, h-5);
 	}
-	
+	function getRandomColor() {
+            var letters = '0123456789ABCDEF'.split('');
+                var color = '#';
+                    for (var i = 0; i < 6; i++ ) {
+                                color += letters[Math.floor(Math.random() * 16)];
+                                    }
+                        return color;
+    }
+
 	//Lets first create a generic function to paint cells
+	function paint_food_cell(x, y)
+	{
+		ctx.fillStyle = getRandomColor();
+		ctx.fillRect(x*cw, y*cw, cw, cw);
+		ctx.strokeStyle = "white";
+		ctx.strokeRect(x*cw, y*cw, cw, cw);
+	}
+		//Lets first create a generic function to paint cells
 	function paint_cell(x, y)
 	{
 		ctx.fillStyle = "blue";
